@@ -1,0 +1,47 @@
+# =========================================================================
+# RealmCanvas Docker Compose Orchestration Specification
+# Complies with REALMCANVAS_MASTER_SPEC.md (Section 12.1, Section 16.1)
+# PostgreSQL 16 + RealmCanvas App Containerization
+# =========================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: realmcanvas_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: realmcanvas_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d realmcanvas_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: realmcanvas_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgrespassword@db:5432/realmcanvas_dev
+      PORT: 3000
+      PUBLIC_BASE_URL: http://localhost:3000
+      ANALYTICS_ENABLED: "true"
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+    driver: local
