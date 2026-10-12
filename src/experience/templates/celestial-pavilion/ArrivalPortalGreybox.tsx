@@ -9,12 +9,14 @@ import ProductPresenter from "@/experience/templates/ProductPresenter";
 interface ArrivalPortalGreyboxProps {
   reducedMotion?: boolean;
   modelUrl?: string;
+  variantId?: string;
   onPedestalClick?: () => void;
 }
 
 export default function ArrivalPortalGreybox({
   reducedMotion = false,
   modelUrl,
+  variantId,
   onPedestalClick,
 }: ArrivalPortalGreyboxProps) {
   const ringRef = useRef<THREE.Mesh>(null);
@@ -170,6 +172,7 @@ export default function ArrivalPortalGreybox({
         title="Aurora Precision Headphones"
         productId="prod_01_aurora"
         slotKey="featured-hero"
+        variantId={variantId}
         modelUrl={modelUrl}
         reducedMotion={reducedMotion}
         onInspect={handleInspect}

@@ -3,6 +3,10 @@
 import { useRef, useState, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import {
+  getVariantById,
+  DEFAULT_VARIANT_ID,
+} from "@/experience/templates/ProductVariants";
 
 export type PresentationMode = "procedural" | "gltf" | "poster-fallback";
 
@@ -10,6 +14,7 @@ interface ProductPresenterProps {
   title: string;
   productId: string;
   slotKey: string;
+  variantId?: string;
   modelUrl?: string;
   fallbackImageUrl?: string;
   forceFallback?: boolean;
@@ -19,6 +24,7 @@ interface ProductPresenterProps {
 
 export default function ProductPresenter({
   title,
+  variantId = DEFAULT_VARIANT_ID,
   modelUrl,
   forceFallback = false,
   reducedMotion = false,
@@ -28,7 +34,10 @@ export default function ProductPresenter({
   const groupRef = useRef<THREE.Group>(null);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Derive presentation mode directly from props and asset state (idiomatic React without cascading effects)
+  // Resolve active PBR material variant
+  const activeVariant = getVariantById(variantId);
+
+  // Derive presentation mode directly from props and asset state
   const mode: PresentationMode =
     forceFallback || hasLoadError
       ? "poster-fallback"
@@ -91,17 +100,17 @@ export default function ProductPresenter({
       }}
     >
       {/* =========================================================================
-          MODE A: PROCEDURAL 3D HARDWARE (DEFAULT WHEN NO EXTERNAL GLB CONFIGURED)
+          MODE A: PROCEDURAL 3D HARDWARE WITH DYNAMIC PBR MATERIAL FINISH (RC-008)
           ========================================================================= */}
       {mode === "procedural" && (
         <group>
-          {/* Main Composite Acoustic Body */}
+          {/* Main Enclosure Composite Body */}
           <mesh>
             <cylinderGeometry args={[0.3, 0.3, 0.28, 32]} />
             <meshStandardMaterial
-              color="#080E1C"
-              roughness={0.25}
-              metalness={0.85}
+              color={activeVariant.bodyColor}
+              roughness={activeVariant.bodyRoughness}
+              metalness={activeVariant.bodyMetalness}
             />
           </mesh>
 
@@ -109,9 +118,9 @@ export default function ProductPresenter({
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.31, 0.02, 16, 32]} />
             <meshStandardMaterial
-              color="#E7F0FF"
-              roughness={0.2}
-              metalness={0.95}
+              color={activeVariant.accentColor}
+              roughness={activeVariant.accentRoughness}
+              metalness={activeVariant.accentMetalness}
             />
           </mesh>
 
@@ -120,18 +129,22 @@ export default function ProductPresenter({
             <sphereGeometry args={[0.12, 24, 24]} />
             <meshStandardMaterial
               color="#182C49"
-              emissive="#37DDEB"
-              emissiveIntensity={isHovered ? 0.9 : 0.6}
+              emissive={activeVariant.emissiveColor}
+              emissiveIntensity={
+                isHovered
+                  ? activeVariant.emissiveIntensity * 1.35
+                  : activeVariant.emissiveIntensity
+              }
               roughness={0.3}
               metalness={0.5}
             />
           </mesh>
 
-          {/* Gold Reveal Trim */}
+          {/* Reveal Trim Ring */}
           <mesh position={[0, -0.14, 0]}>
             <cylinderGeometry args={[0.22, 0.22, 0.02, 32]} />
             <meshStandardMaterial
-              color="#F5CA8A"
+              color={activeVariant.revealTrimColor}
               roughness={0.3}
               metalness={0.8}
             />
@@ -160,7 +173,7 @@ export default function ProductPresenter({
             <boxGeometry args={[0.66, 0.86, 0.005]} />
             <meshStandardMaterial
               color="#182C49"
-              emissive={hasLoadError ? "#F5CA8A" : "#37DDEB"}
+              emissive={hasLoadError ? "#F5CA8A" : activeVariant.emissiveColor}
               emissiveIntensity={isHovered ? 0.8 : 0.4}
               roughness={0.3}
               metalness={0.5}
@@ -176,11 +189,11 @@ export default function ProductPresenter({
             />
           </mesh>
 
-          {/* Stylized Hardware Emblem on Poster Surface */}
+          {/* Stylized Hardware Emblem with Variant Hue */}
           <mesh position={[0, 0.1, 0.035]}>
             <circleGeometry args={[0.16, 32]} />
             <meshBasicMaterial
-              color={hasLoadError ? "#F5CA8A" : "#37DDEB"}
+              color={hasLoadError ? "#F5CA8A" : activeVariant.emissiveColor}
               transparent
               opacity={0.85}
             />

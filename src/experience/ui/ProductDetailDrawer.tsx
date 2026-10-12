@@ -57,11 +57,15 @@ export function isSafeCtaUrl(url: string | undefined | null): boolean {
   }
 }
 
+import { PRODUCT_VARIANTS } from "@/experience/templates/ProductVariants";
+
 interface ProductDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   product?: ProductDetailData;
   triggerRef?: React.RefObject<HTMLElement | null>;
+  selectedVariantId?: string;
+  onSelectVariant?: (variantId: string) => void;
 }
 
 export default function ProductDetailDrawer({
@@ -69,6 +73,8 @@ export default function ProductDetailDrawer({
   onClose,
   product = DEFAULT_HERO_PRODUCT,
   triggerRef,
+  selectedVariantId = "var_midnight",
+  onSelectVariant,
 }: ProductDetailDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -267,26 +273,114 @@ export default function ProductDetailDrawer({
           </dl>
         </div>
 
-        {/* FINISH / VARIANTS BADGES */}
+        {/* HARDWARE FINISH / MATERIAL VARIANT SELECTOR (RC-008) */}
         <div style={{ marginBottom: "2rem" }}>
-          <h3
+          <div
             style={{
-              fontSize: "0.8rem",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: "var(--iris)",
-              marginBottom: "0.5rem",
-              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "0.75rem",
             }}
           >
-            Supported Finishes (RC-008)
-          </h3>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            {product.variants.map((v) => (
-              <span key={v.id} className="badge badge-iris">
-                {v.label}
-              </span>
-            ))}
+            <h3
+              style={{
+                fontSize: "0.8rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: "var(--iris)",
+                margin: 0,
+                fontWeight: 600,
+              }}
+            >
+              Hardware Finish (RC-008)
+            </h3>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--pearl-dim)",
+              }}
+            >
+              Instant PBR Swap
+            </span>
+          </div>
+
+          <div
+            role="radiogroup"
+            aria-label="Hardware Finish Selection"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.75rem",
+            }}
+          >
+            {product.variants.map((v) => {
+              const isSelected = selectedVariantId === v.id;
+              const variantMeta = PRODUCT_VARIANTS[v.id];
+              const swatch = variantMeta?.swatchColor || "#080E1C";
+              const accent = variantMeta?.emissiveColor || "var(--aether-cyan)";
+
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  onClick={() => onSelectVariant?.(v.id)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    padding: "0.65rem 0.85rem",
+                    borderRadius: "var(--radius-sm)",
+                    border: isSelected
+                      ? `1.5px solid ${accent}`
+                      : "1px solid var(--border-subtle)",
+                    backgroundColor: isSelected
+                      ? "rgba(24, 44, 73, 0.75)"
+                      : "rgba(16, 30, 51, 0.45)",
+                    color: isSelected ? "var(--pearl)" : "var(--pearl-muted)",
+                    cursor: "pointer",
+                    fontSize: "0.825rem",
+                    fontWeight: isSelected ? 600 : 400,
+                    transition: "all var(--transition-fast)",
+                    boxShadow: isSelected
+                      ? `0 0 12px ${accent}40`
+                      : "none",
+                    textAlign: "left",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "14px",
+                      height: "14px",
+                      borderRadius: "50%",
+                      backgroundColor: swatch,
+                      border: "1px solid var(--border-accent)",
+                      flexShrink: 0,
+                      display: "inline-block",
+                      boxShadow: isSelected ? `0 0 6px ${accent}` : "none",
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span style={{ flexGrow: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {v.label}
+                  </span>
+                  {isSelected && (
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        color: accent,
+                        fontWeight: 700,
+                      }}
+                      aria-hidden="true"
+                    >
+                      ✓
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 

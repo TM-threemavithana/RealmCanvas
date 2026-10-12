@@ -11,6 +11,10 @@ import {
   type InteractionPayload,
 } from "@/experience/interactions/InteractionRegistry";
 import ProductDetailDrawer from "@/experience/ui/ProductDetailDrawer";
+import {
+  PRODUCT_VARIANTS,
+  DEFAULT_VARIANT_ID,
+} from "@/experience/templates/ProductVariants";
 
 interface ExperienceCanvasProps {
   report: CapabilityReport;
@@ -27,6 +31,7 @@ export default function ExperienceCanvas({
   const [hasInspected, setHasInspected] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activePayload, setActivePayload] = useState<InteractionPayload | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(DEFAULT_VARIANT_ID);
 
   const inspectTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -112,6 +117,7 @@ export default function ExperienceCanvas({
         />
         <ArrivalPortalGreybox
           reducedMotion={report.prefersReducedMotion}
+          variantId={selectedVariantId}
           onPedestalClick={() => {
             setCameraMode("inspect");
             setHasInspected(true);
@@ -136,13 +142,16 @@ export default function ExperienceCanvas({
           zIndex: 10,
         }}
       >
-        <div style={{ display: "flex", gap: "0.5rem", pointerEvents: "auto", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "0.5rem", pointerEvents: "auto", alignItems: "center", flexWrap: "wrap" }}>
           <span className="badge badge-cyan" style={{ backdropFilter: "blur(8px)" }}>
             <span className="status-dot" />
             Zone 01: Arrival Portal
           </span>
           <span className="badge" style={{ backdropFilter: "blur(8px)", textTransform: "capitalize" }}>
             Tier: {report.tier} ({report.effectiveDpr.toFixed(2)}x DPR)
+          </span>
+          <span className="badge badge-iris" style={{ backdropFilter: "blur(8px)" }}>
+            Finish: {PRODUCT_VARIANTS[selectedVariantId]?.label || selectedVariantId}
           </span>
           {activePayload && (
             <span className="badge badge-gold" style={{ backdropFilter: "blur(8px)" }}>
@@ -231,6 +240,8 @@ export default function ExperienceCanvas({
         isOpen={isDrawerOpen}
         onClose={handleCloseDrawer}
         triggerRef={inspectTriggerRef}
+        selectedVariantId={selectedVariantId}
+        onSelectVariant={(variantId) => setSelectedVariantId(variantId)}
       />
     </div>
   );
