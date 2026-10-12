@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import Link from "next/link";
 import CameraRig from "@/experience/camera/CameraRig";
 import ArrivalPortalGreybox from "@/experience/templates/celestial-pavilion/ArrivalPortalGreybox";
 import type { CapabilityReport } from "@/experience/quality/QualityManager";
+import {
+  interactionDispatcher,
+  type InteractionPayload,
+} from "@/experience/interactions/InteractionRegistry";
 
 interface ExperienceCanvasProps {
   report: CapabilityReport;
@@ -20,18 +24,46 @@ export default function ExperienceCanvas({
 }: ExperienceCanvasProps) {
   const [cameraMode, setCameraMode] = useState<"arrival" | "inspect">("arrival");
   const [hasInspected, setHasInspected] = useState(false);
+  const [activePayload, setActivePayload] = useState<InteractionPayload | null>(null);
 
-  const toggleCameraMode = () => {
-    const nextMode = cameraMode === "arrival" ? "inspect" : "arrival";
-    setCameraMode(nextMode);
-    if (nextMode === "inspect") {
-      setHasInspected(true);
+  // Subscribe to typed interaction dispatcher events
+  useEffect(() => {
+    const unsubscribe = interactionDispatcher.subscribe(
+      "inspect_product",
+      (payload) => {
+        setCameraMode("inspect");
+        setHasInspected(true);
+        setActivePayload(payload);
+      }
+    );
+
+    // Escape key closes product inspection and returns to Arrival View
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setCameraMode("arrival");
+        setActivePayload(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const handleInspectTrigger = () => {
+    if (cameraMode === "arrival") {
+      interactionDispatcher.dispatch({
+        interaction: "inspect_product",
+        slotKey: "featured-hero",
+        productId: "prod_01_aurora",
+      });
+    } else {
+      setCameraMode("arrival");
+      setActivePayload(null);
     }
-  };
-
-  const handlePedestalClick = () => {
-    setCameraMode("inspect");
-    setHasInspected(true);
   };
 
   return (
@@ -70,7 +102,10 @@ export default function ExperienceCanvas({
         />
         <ArrivalPortalGreybox
           reducedMotion={report.prefersReducedMotion}
-          onPedestalClick={handlePedestalClick}
+          onPedestalClick={() => {
+            setCameraMode("inspect");
+            setHasInspected(true);
+          }}
         />
       </Canvas>
 
@@ -89,7 +124,7 @@ export default function ExperienceCanvas({
           pointerEvents: "none",
         }}
       >
-        <div style={{ display: "flex", gap: "0.5rem", pointerEvents: "auto" }}>
+        <div style={{ display: "flex", gap: "0.5rem", pointerEvents: "auto", alignItems: "center" }}>
           <span className="badge badge-cyan" style={{ backdropFilter: "blur(8px)" }}>
             <span className="status-dot" />
             Zone 01: Arrival Portal
@@ -97,6 +132,11 @@ export default function ExperienceCanvas({
           <span className="badge" style={{ backdropFilter: "blur(8px)", textTransform: "capitalize" }}>
             Tier: {report.tier} ({report.effectiveDpr.toFixed(2)}x DPR)
           </span>
+          {activePayload && (
+            <span className="badge badge-gold" style={{ backdropFilter: "blur(8px)" }}>
+              Focused: {activePayload.slotKey} ({activePayload.productId})
+            </span>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem", pointerEvents: "auto" }}>
@@ -155,17 +195,19 @@ export default function ExperienceCanvas({
         >
           <button
             type="button"
-            onClick={toggleCameraMode}
+            onClick={handleInspectTrigger}
             className={`btn ${cameraMode === "inspect" ? "btn-primary" : "btn-secondary"}`}
             style={{ padding: "0.45rem 1.1rem", fontSize: "0.85rem" }}
           >
-            {cameraMode === "arrival" ? "Inspect Hero Product" : "Reset Arrival View"}
+            {cameraMode === "arrival"
+              ? "Inspect Hero Product (Enter)"
+              : "Reset Arrival View (Esc)"}
           </button>
 
           <span style={{ fontSize: "0.8rem", color: "var(--pearl-muted)" }}>
             {hasInspected
-              ? "Product Pedestal in Focus"
-              : "Click Pedestal or button to Inspect"}
+              ? "Hero Pedestal in Focus · Press Esc to reset"
+              : "Click Pedestal or press button to Inspect"}
           </span>
         </div>
       </div>

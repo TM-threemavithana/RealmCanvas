@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { interactionDispatcher } from "@/experience/interactions/InteractionRegistry";
 
 interface ArrivalPortalGreyboxProps {
   reducedMotion?: boolean;
@@ -15,6 +16,8 @@ export default function ArrivalPortalGreybox({
 }: ArrivalPortalGreyboxProps) {
   const productRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
+
+  const [isHovered, setIsHovered] = useState(false);
 
   useFrame((_, delta) => {
     if (!reducedMotion && productRef.current) {
@@ -118,13 +121,24 @@ export default function ArrivalPortalGreybox({
       {/* HERO DISPLAY PEDESTAL */}
       <group
         position={[0, 0, 0]}
-        onClick={onPedestalClick}
+        onClick={() => {
+          interactionDispatcher.dispatch({
+            interaction: "inspect_product",
+            slotKey: "featured-hero",
+            productId: "prod_01_aurora",
+          });
+          if (onPedestalClick) {
+            onPedestalClick();
+          }
+        }}
         onPointerOver={() => {
+          setIsHovered(true);
           if (typeof document !== "undefined") {
             document.body.style.cursor = "pointer";
           }
         }}
         onPointerOut={() => {
+          setIsHovered(false);
           if (typeof document !== "undefined") {
             document.body.style.cursor = "auto";
           }
@@ -140,14 +154,14 @@ export default function ArrivalPortalGreybox({
           />
         </mesh>
 
-        {/* Luminous Pedestal Halo Ring */}
+        {/* Luminous Pedestal Halo Ring with Dynamic Hover Intensity */}
         <mesh position={[0, 0.905, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.48, 0.53, 36]} />
+          <ringGeometry args={[0.48, isHovered ? 0.55 : 0.53, 36]} />
           <meshBasicMaterial
             color="#37DDEB"
             side={THREE.DoubleSide}
             transparent
-            opacity={0.8}
+            opacity={isHovered ? 1.0 : 0.75}
           />
         </mesh>
       </group>
