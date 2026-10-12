@@ -4,30 +4,38 @@ import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { interactionDispatcher } from "@/experience/interactions/InteractionRegistry";
+import ProductPresenter from "@/experience/templates/ProductPresenter";
 
 interface ArrivalPortalGreyboxProps {
   reducedMotion?: boolean;
+  modelUrl?: string;
   onPedestalClick?: () => void;
 }
 
 export default function ArrivalPortalGreybox({
   reducedMotion = false,
+  modelUrl,
   onPedestalClick,
 }: ArrivalPortalGreyboxProps) {
-  const productRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
-
   const [isHovered, setIsHovered] = useState(false);
 
   useFrame((_, delta) => {
-    if (!reducedMotion && productRef.current) {
-      // Gentle delta-driven rotation of the hero product (no high-frequency React state updates)
-      productRef.current.rotation.y += delta * 0.45;
-    }
     if (!reducedMotion && ringRef.current) {
       ringRef.current.rotation.z += delta * 0.15;
     }
   });
+
+  const handleInspect = () => {
+    interactionDispatcher.dispatch({
+      interaction: "inspect_product",
+      slotKey: "featured-hero",
+      productId: "prod_01_aurora",
+    });
+    if (onPedestalClick) {
+      onPedestalClick();
+    }
+  };
 
   return (
     <group>
@@ -121,16 +129,7 @@ export default function ArrivalPortalGreybox({
       {/* HERO DISPLAY PEDESTAL */}
       <group
         position={[0, 0, 0]}
-        onClick={() => {
-          interactionDispatcher.dispatch({
-            interaction: "inspect_product",
-            slotKey: "featured-hero",
-            productId: "prod_01_aurora",
-          });
-          if (onPedestalClick) {
-            onPedestalClick();
-          }
-        }}
+        onClick={handleInspect}
         onPointerOver={() => {
           setIsHovered(true);
           if (typeof document !== "undefined") {
@@ -166,50 +165,15 @@ export default function ArrivalPortalGreybox({
         </mesh>
       </group>
 
-      {/* PROCEDURAL HERO HARDWARE PRODUCT (AETHER SOUND PRO SPEAKER/DRIVER) */}
-      <group ref={productRef} position={[0, 1.25, 0]}>
-        {/* Main Composite Acoustic Body */}
-        <mesh>
-          <cylinderGeometry args={[0.3, 0.3, 0.28, 32]} />
-          <meshStandardMaterial
-            color="#080E1C"
-            roughness={0.25}
-            metalness={0.85}
-          />
-        </mesh>
-
-        {/* Outer Titanium Trim Ring */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.31, 0.02, 16, 32]} />
-          <meshStandardMaterial
-            color="#E7F0FF"
-            roughness={0.2}
-            metalness={0.95}
-          />
-        </mesh>
-
-        {/* Central Luminous Acoustic Driver Core */}
-        <mesh position={[0, 0.15, 0]}>
-          <sphereGeometry args={[0.12, 24, 24]} />
-          <meshStandardMaterial
-            color="#182C49"
-            emissive="#37DDEB"
-            emissiveIntensity={0.6}
-            roughness={0.3}
-            metalness={0.5}
-          />
-        </mesh>
-
-        {/* Gold Reveal Trim */}
-        <mesh position={[0, -0.14, 0]}>
-          <cylinderGeometry args={[0.22, 0.22, 0.02, 32]} />
-          <meshStandardMaterial
-            color="#F5CA8A"
-            roughness={0.3}
-            metalness={0.8}
-          />
-        </mesh>
-      </group>
+      {/* RESILIENT HERO PRODUCT PRESENTER (PROCEDURAL + ASSET LOADER + 2D POSTER FALLBACK) */}
+      <ProductPresenter
+        title="Aurora Precision Headphones"
+        productId="prod_01_aurora"
+        slotKey="featured-hero"
+        modelUrl={modelUrl}
+        reducedMotion={reducedMotion}
+        onInspect={handleInspect}
+      />
     </group>
   );
 }
