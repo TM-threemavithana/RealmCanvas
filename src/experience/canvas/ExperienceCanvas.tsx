@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Canvas } from "@react-three/fiber";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
 import Link from "next/link";
 import CameraRig, {
   type CameraRigMode,
@@ -11,7 +11,15 @@ import CameraRig, {
   DEFAULT_DESTINATION_ID,
 } from "@/experience/camera/CameraRig";
 import ArrivalPortalGreybox from "@/experience/templates/celestial-pavilion/ArrivalPortalGreybox";
-import type { CapabilityReport } from "@/experience/quality/QualityManager";
+import {
+  type CapabilityReport,
+  type QualityTier,
+  getEffectiveDpr,
+} from "@/experience/quality/QualityManager";
+import {
+  PerformanceMonitor,
+  type PerformanceMetrics,
+} from "@/experience/quality/PerformanceMonitor";
 import {
   interactionDispatcher,
   type InteractionPayload,
@@ -28,6 +36,26 @@ interface ExperienceCanvasProps {
   onExitExperience?: () => void;
 }
 
+function PerformanceSampler({
+  monitor,
+  onMetricsUpdate,
+}: {
+  monitor: PerformanceMonitor;
+  onMetricsUpdate: (metrics: PerformanceMetrics) => void;
+}) {
+  const frameCount = useRef(0);
+
+  useFrame((_, delta) => {
+    const metrics = monitor.recordFrame(delta);
+    frameCount.current++;
+    if (frameCount.current % 30 === 0) {
+      onMetricsUpdate(metrics);
+    }
+  });
+
+  return null;
+}
+
 export default function ExperienceCanvas({
   report,
   slug,
@@ -39,9 +67,24 @@ export default function ExperienceCanvas({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activePayload, setActivePayload] = useState<InteractionPayload | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string>(DEFAULT_VARIANT_ID);
+  const [effectiveTier, setEffectiveTier] = useState<QualityTier>(report.tier);
+  const [perfMetrics, setPerfMetrics] = useState<PerformanceMetrics | null>(null);
+  const [showPerfOverlay, setShowPerfOverlay] = useState(false);
 
   const inspectTriggerRef = useRef<HTMLButtonElement>(null);
   const currentDestination = getDestinationById(activeZone);
+
+  const perfMonitor = useMemo(
+    () =>
+      new PerformanceMonitor(report.tier, {
+        onTierChange: (newTier) => {
+          setEffectiveTier(newTier);
+        },
+      }),
+    [report.tier]
+  );
+
+  const effectiveDpr = getEffectiveDpr(effectiveTier, report.systemDpr);
 
   // Subscribe to typed interaction dispatcher events
   useEffect(() => {
@@ -124,7 +167,7 @@ export default function ExperienceCanvas({
     >
       {/* REACT THREE FIBER DECLARATIVE CANVAS */}
       <Canvas
-        dpr={report.effectiveDpr}
+        dpr={effectiveDpr}
         gl={{
           powerPreference: "high-performance",
           antialias: true,
@@ -138,6 +181,12 @@ export default function ExperienceCanvas({
         }}
         style={{ width: "100%", height: "100%" }}
       >
+        <PerformanceSampler
+          monitor={perfMonitor}
+          onMetricsUpdate={(metrics) => {
+            setPerfMetrics(metrics);
+          }}
+        />
         <CameraRig
           mode={cameraMode}
           reducedMotion={report.prefersReducedMotion}
@@ -174,9 +223,20 @@ export default function ExperienceCanvas({
             <span className="status-dot" />
             Zone {currentDestination.zoneNumber}: {currentDestination.label}
           </span>
-          <span className="badge" style={{ backdropFilter: "blur(8px)", textTransform: "capitalize" }}>
-            Tier: {report.tier} ({report.effectiveDpr.toFixed(2)}x DPR)
-          </span>
+          <button
+            type="button"
+            onClick={() => setShowPerfOverlay((prev) => !prev)}
+            className={`badge ${perfMetrics?.isDegraded ? "badge-gold" : ""}`}
+            style={{
+              backdropFilter: "blur(8px)",
+              cursor: "pointer",
+              textTransform: "capitalize",
+              border: showPerfOverlay ? "1px solid var(--aether-cyan)" : undefined,
+            }}
+            title="Toggle Diagnostics & Real-Time Performance Telemetry (RC-010)"
+          >
+            Tier: {effectiveTier} ({perfMetrics ? `${perfMetrics.currentFps} FPS` : `${effectiveDpr.toFixed(2)}x DPR`})
+          </button>
           <span className="badge badge-iris" style={{ backdropFilter: "blur(8px)" }}>
             Finish: {PRODUCT_VARIANTS[selectedVariantId]?.label || selectedVariantId}
           </span>
@@ -337,6 +397,76 @@ export default function ExperienceCanvas({
         selectedVariantId={selectedVariantId}
         onSelectVariant={(variantId) => setSelectedVariantId(variantId)}
       />
+
+      {/* PERFORMANCE & DIAGNOSTICS TELEMETRY OVERLAY (RC-010) */}
+      {showPerfOverlay && (
+        <div
+          className="glass-panel"
+          style={{
+            position: "absolute",
+            top: "4.5rem",
+            left: "1.25rem",
+            zIndex: 30,
+            padding: "1rem",
+            width: "300px",
+            fontSize: "0.8rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            boxShadow: "0 8px 32px rgba(8, 14, 28, 0.85)",
+            border: "1px solid var(--border-accent)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 600, color: "var(--aether-cyan)" }}>
+              Telemetry Diagnostics
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowPerfOverlay(false)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--pearl-dim)",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+              }}
+              aria-label="Close telemetry overlay"
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
+            <span style={{ color: "var(--pearl-dim)" }}>Framerate:</span>
+            <span style={{ color: "var(--pearl)", fontWeight: 500 }}>
+              {perfMetrics ? `${perfMetrics.currentFps} FPS` : "Sampling..."}
+            </span>
+            <span style={{ color: "var(--pearl-dim)" }}>Frame Time:</span>
+            <span style={{ color: "var(--pearl)", fontWeight: 500 }}>
+              {perfMetrics ? `${perfMetrics.averageFrameTimeMs} ms` : "Sampling..."}
+            </span>
+            <span style={{ color: "var(--pearl-dim)" }}>Active Tier:</span>
+            <span style={{ color: "var(--pearl)", fontWeight: 500, textTransform: "capitalize" }}>
+              {effectiveTier}
+            </span>
+            <span style={{ color: "var(--pearl-dim)" }}>Effective DPR:</span>
+            <span style={{ color: "var(--pearl)", fontWeight: 500 }}>
+              {effectiveDpr.toFixed(2)}x
+            </span>
+            <span style={{ color: "var(--pearl-dim)" }}>Hysteresis:</span>
+            <span style={{ color: "var(--aether-cyan)", fontWeight: 500 }}>
+              Active (5s Lock)
+            </span>
+            <span style={{ color: "var(--pearl-dim)" }}>Samples:</span>
+            <span style={{ color: "var(--pearl)", fontWeight: 500 }}>
+              {perfMetrics?.totalSamples || 0}
+            </span>
+          </div>
+          <span style={{ fontSize: "0.72rem", color: "var(--pearl-dim)", marginTop: "0.25rem" }}>
+            NFR-005: 60 FPS desktop / 30+ FPS mobile baseline with automated hysteresis degradation.
+          </span>
+        </div>
+      )}
     </div>
   );
 }
