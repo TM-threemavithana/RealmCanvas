@@ -49,6 +49,180 @@ export const ROLE_HIERARCHY: Record<OrganizationRole, number> = {
   analyst: 1,
 };
 
-export function hasMinimumRole(userRole: OrganizationRole, requiredRole: OrganizationRole): boolean {
+export function hasMinimumRole(
+  userRole: OrganizationRole,
+  requiredRole: OrganizationRole
+): boolean {
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
 }
+
+// ==========================================
+// SHOWROOMS, REVISIONS & PUBLICATIONS
+// ==========================================
+
+export interface Showroom {
+  id: string; // UUID PK
+  organizationId: string; // FK -> organizations.id
+  slug: string; // UNIQUE(organization_id, slug)
+  title: string;
+  templateId: string;
+  activePublicationId?: string; // FK -> publications.id
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ShowroomRevision {
+  id: string; // UUID PK
+  showroomId: string; // FK -> showrooms.id
+  revisionNumber: number; // UNIQUE(showroom_id, revision_number)
+  draftConfig: Record<string, unknown>;
+  editedBy: string; // FK -> users.id
+  updatedAt: Date;
+}
+
+export interface Publication {
+  id: string; // UUID PK
+  showroomId: string; // FK -> showrooms.id
+  revisionId: string; // FK -> showroom_revisions.id
+  manifest: Record<string, unknown>; // Immutable published scene manifest
+  publishedBy: string; // FK -> users.id
+  publishedAt: Date;
+}
+
+// ==========================================
+// CATALOG, PRODUCTS & ASSETS
+// ==========================================
+
+export const PRODUCT_STATUSES = ["draft", "published", "archived"] as const;
+export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
+
+export interface Product {
+  id: string; // UUID PK
+  organizationId: string; // FK -> organizations.id
+  slug: string; // UNIQUE(organization_id, slug)
+  name: string;
+  summary: string;
+  status: ProductStatus;
+  ctaUrl: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ProductVariant {
+  id: string; // UUID PK
+  productId: string; // FK -> products.id
+  label: string;
+  attributes: Record<string, unknown>;
+  modelAssetId?: string; // FK -> assets.id
+  displayOrder: number;
+  createdAt: Date;
+}
+
+export const ASSET_STATES = [
+  "pending",
+  "uploaded",
+  "quarantined",
+  "verified",
+  "archived",
+] as const;
+export type AssetState = (typeof ASSET_STATES)[number];
+
+export interface Asset {
+  id: string; // UUID PK
+  organizationId: string; // FK -> organizations.id
+  objectKey: string; // UNIQUE
+  contentType: string;
+  bytes: number;
+  state: AssetState;
+  checksum?: string;
+  createdAt: Date;
+}
+
+// ==========================================
+// PLACEMENTS (SLOT TO PRODUCT BINDINGS)
+// ==========================================
+
+export interface Placement {
+  id: string; // UUID PK
+  showroomRevisionId: string; // FK -> showroom_revisions.id
+  slotKey: string; // UNIQUE(showroom_revision_id, slot_key)
+  productId: string; // FK -> products.id
+  config: {
+    scale?: number;
+    rotation?: number;
+    customLabel?: string;
+  };
+}
+
+// ==========================================
+// LEADS, CONVERSIONS & CRM
+// ==========================================
+
+export const LEAD_STATUSES = ["new", "contacted", "qualified", "archived"] as const;
+export type LeadStatus = (typeof LEAD_STATUSES)[number];
+
+export interface LeadContact {
+  name: string;
+  email: string;
+  phone?: string;
+  notes?: string;
+}
+
+export interface Lead {
+  id: string; // UUID PK
+  organizationId: string; // FK -> organizations.id
+  showroomId: string; // FK -> showrooms.id
+  productId?: string; // FK -> products.id
+  contact: LeadContact;
+  consent: boolean;
+  status: LeadStatus;
+  createdAt: Date;
+}
+
+// ==========================================
+// ANALYTICS & AUDIT LOGS
+// ==========================================
+
+export interface AnalyticsEventRecord {
+  id: string; // UUID PK
+  organizationId: string; // FK -> organizations.id
+  showroomId: string; // FK -> showrooms.id
+  publicationId?: string; // FK -> publications.id
+  sessionTokenHash?: string;
+  eventType: string;
+  eventData: Record<string, unknown>;
+  recordedAt: Date;
+}
+
+export interface AuditLog {
+  id: string; // UUID PK
+  organizationId?: string; // FK -> organizations.id
+  actorId?: string; // FK -> users.id
+  action: string;
+  entity: string;
+  entityId: string;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+}
+
+// ==========================================
+// SCHEMA TABLE METADATA REGISTRY
+// ==========================================
+
+export const SCHEMA_TABLE_NAMES = [
+  "organizations",
+  "users",
+  "memberships",
+  "showrooms",
+  "showroom_revisions",
+  "publications",
+  "products",
+  "product_variants",
+  "assets",
+  "placements",
+  "leads",
+  "analytics_events",
+  "audit_logs",
+] as const;
+
+export type SchemaTableName = (typeof SCHEMA_TABLE_NAMES)[number];
