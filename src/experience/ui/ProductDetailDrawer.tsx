@@ -198,6 +198,8 @@ export default function ProductDetailDrawer({
             style={{
               padding: "0.35rem 0.75rem",
               fontSize: "0.8rem",
+              minHeight: "44px",
+              minWidth: "44px",
             }}
             aria-label="Close product inspection drawer (Escape)"
           >
@@ -332,6 +334,7 @@ export default function ProductDetailDrawer({
                     alignItems: "center",
                     gap: "0.6rem",
                     padding: "0.65rem 0.85rem",
+                    minHeight: "44px",
                     borderRadius: "var(--radius-sm)",
                     border: isSelected
                       ? `1.5px solid ${accent}`

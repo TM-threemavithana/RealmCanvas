@@ -58,7 +58,7 @@ export default function Footer() {
           </div>
 
           {/* Navigation Column */}
-          <div>
+          <nav aria-label="Footer Navigation">
             <h4
               style={{
                 fontSize: "0.85rem",
@@ -96,7 +96,7 @@ export default function Footer() {
                 <a href="#features">Commercial Specification</a>
               </li>
             </ul>
-          </div>
+          </nav>
 
           {/* Standards & Quality Column */}
           <div>
