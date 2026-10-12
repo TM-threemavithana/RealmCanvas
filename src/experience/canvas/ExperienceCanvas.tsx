@@ -3,7 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import Link from "next/link";
-import CameraRig from "@/experience/camera/CameraRig";
+import CameraRig, {
+  type CameraRigMode,
+  type NavigationZoneId,
+  NAVIGATION_DESTINATIONS,
+  getDestinationById,
+  DEFAULT_DESTINATION_ID,
+} from "@/experience/camera/CameraRig";
 import ArrivalPortalGreybox from "@/experience/templates/celestial-pavilion/ArrivalPortalGreybox";
 import type { CapabilityReport } from "@/experience/quality/QualityManager";
 import {
@@ -27,13 +33,15 @@ export default function ExperienceCanvas({
   slug,
   onExitExperience,
 }: ExperienceCanvasProps) {
-  const [cameraMode, setCameraMode] = useState<"arrival" | "inspect">("arrival");
+  const [activeZone, setActiveZone] = useState<NavigationZoneId>(DEFAULT_DESTINATION_ID);
+  const [cameraMode, setCameraMode] = useState<CameraRigMode>("zone_arrival");
   const [hasInspected, setHasInspected] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activePayload, setActivePayload] = useState<InteractionPayload | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string>(DEFAULT_VARIANT_ID);
 
   const inspectTriggerRef = useRef<HTMLButtonElement>(null);
+  const currentDestination = getDestinationById(activeZone);
 
   // Subscribe to typed interaction dispatcher events
   useEffect(() => {
@@ -47,10 +55,15 @@ export default function ExperienceCanvas({
       }
     );
 
-    // Escape key closes product inspection and returns to Arrival View
+    // Escape key closes product inspection and returns to Active Zone
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !isDrawerOpen) {
-        setCameraMode("arrival");
+        if (cameraMode === "inspect") {
+          setCameraMode(activeZone);
+        } else {
+          setActiveZone(DEFAULT_DESTINATION_ID);
+          setCameraMode(DEFAULT_DESTINATION_ID);
+        }
         setActivePayload(null);
       }
     };
@@ -61,16 +74,30 @@ export default function ExperienceCanvas({
       unsubscribe();
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isDrawerOpen]);
+  }, [isDrawerOpen, cameraMode, activeZone]);
 
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
-    setCameraMode("arrival");
+    setCameraMode(activeZone);
     setActivePayload(null);
   };
 
+  const handleSelectZone = (zoneId: NavigationZoneId) => {
+    setActiveZone(zoneId);
+    setCameraMode(zoneId);
+    if (isDrawerOpen) {
+      setIsDrawerOpen(false);
+      setActivePayload(null);
+    }
+    interactionDispatcher.dispatch({
+      interaction: "focus_location",
+      slotKey: "featured-hero",
+      metadata: { zoneId },
+    });
+  };
+
   const handleInspectTrigger = () => {
-    if (cameraMode === "arrival" || !isDrawerOpen) {
+    if (cameraMode !== "inspect" || !isDrawerOpen) {
       interactionDispatcher.dispatch({
         interaction: "inspect_product",
         slotKey: "featured-hero",
@@ -145,7 +172,7 @@ export default function ExperienceCanvas({
         <div style={{ display: "flex", gap: "0.5rem", pointerEvents: "auto", alignItems: "center", flexWrap: "wrap" }}>
           <span className="badge badge-cyan" style={{ backdropFilter: "blur(8px)" }}>
             <span className="status-dot" />
-            Zone 01: Arrival Portal
+            Zone {currentDestination.zoneNumber}: {currentDestination.label}
           </span>
           <span className="badge" style={{ backdropFilter: "blur(8px)", textTransform: "capitalize" }}>
             Tier: {report.tier} ({report.effectiveDpr.toFixed(2)}x DPR)
@@ -190,28 +217,87 @@ export default function ExperienceCanvas({
         </div>
       </div>
 
-      {/* BOTTOM FLOATING INTERACTION HUD */}
+      {/* BOTTOM FLOATING INTERACTION HUD: ZONE NAVIGATION DOCK & INSPECTION */}
       <div
         style={{
           position: "absolute",
-          bottom: "1.5rem",
+          bottom: "1.25rem",
           left: "50%",
           transform: "translateX(-50%)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: "0.75rem",
+          gap: "0.5rem",
           pointerEvents: "auto",
           zIndex: 10,
+          width: "calc(100% - 2.5rem)",
+          maxWidth: "680px",
         }}
       >
+        {/* ACCESSIBLE ZONE DESTINATION NAVIGATION DOCK */}
+        <nav
+          aria-label="Celestial Pavilion Zone Navigation"
+          className="glass-panel"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.35rem 0.5rem",
+            gap: "0.35rem",
+            width: "100%",
+            boxShadow: "0 8px 32px rgba(8, 14, 28, 0.75)",
+            overflowX: "auto",
+          }}
+        >
+          {NAVIGATION_DESTINATIONS.map((dest) => {
+            const isActive = activeZone === dest.id && cameraMode !== "inspect";
+            return (
+              <button
+                key={dest.id}
+                type="button"
+                aria-current={isActive ? "true" : undefined}
+                onClick={() => handleSelectZone(dest.id)}
+                className={`btn ${isActive ? "btn-primary" : "btn-secondary"}`}
+                style={{
+                  flex: "1 1 0",
+                  minWidth: "120px",
+                  padding: "0.35rem 0.6rem",
+                  fontSize: "0.78rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.4rem",
+                  whiteSpace: "nowrap",
+                  borderColor: isActive ? "var(--aether-cyan)" : undefined,
+                }}
+                title={dest.description}
+              >
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    opacity: 0.8,
+                    fontFamily: "monospace",
+                    color: isActive ? "var(--aether-cyan)" : "var(--pearl-dim)",
+                  }}
+                >
+                  {dest.zoneNumber}
+                </span>
+                <span>{dest.shortLabel}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* PEDESTAL INSPECTION CONTROL BAR */}
         <div
           className="glass-panel"
           style={{
-            padding: "0.5rem 1rem",
+            padding: "0.45rem 1rem",
             display: "flex",
             alignItems: "center",
+            justifyContent: "space-between",
             gap: "1rem",
+            width: "100%",
             boxShadow: "0 8px 32px rgba(8, 14, 28, 0.75)",
           }}
         >
@@ -220,17 +306,25 @@ export default function ExperienceCanvas({
             type="button"
             onClick={handleInspectTrigger}
             className={`btn ${cameraMode === "inspect" ? "btn-primary" : "btn-secondary"}`}
-            style={{ padding: "0.45rem 1.1rem", fontSize: "0.85rem" }}
+            style={{ padding: "0.4rem 1.1rem", fontSize: "0.825rem", whiteSpace: "nowrap" }}
           >
-            {cameraMode === "arrival"
-              ? "Inspect Hero Product (Enter)"
-              : "Reset Arrival View (Esc)"}
+            {cameraMode === "inspect"
+              ? `Reset ${currentDestination.shortLabel} View (Esc)`
+              : "Inspect Hero Product (Enter)"}
           </button>
 
-          <span style={{ fontSize: "0.8rem", color: "var(--pearl-muted)" }}>
-            {hasInspected
+          <span
+            style={{
+              fontSize: "0.78rem",
+              color: "var(--pearl-muted)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {cameraMode === "inspect"
               ? "Hero Pedestal in Focus · Details Active"
-              : "Click Pedestal or press button to Inspect"}
+              : `${currentDestination.label}: ${currentDestination.tagline}`}
           </span>
         </div>
       </div>
