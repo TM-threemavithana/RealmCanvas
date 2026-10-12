@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import Link from "next/link";
 import CameraRig from "@/experience/camera/CameraRig";
@@ -10,6 +10,7 @@ import {
   interactionDispatcher,
   type InteractionPayload,
 } from "@/experience/interactions/InteractionRegistry";
+import ProductDetailDrawer from "@/experience/ui/ProductDetailDrawer";
 
 interface ExperienceCanvasProps {
   report: CapabilityReport;
@@ -24,7 +25,10 @@ export default function ExperienceCanvas({
 }: ExperienceCanvasProps) {
   const [cameraMode, setCameraMode] = useState<"arrival" | "inspect">("arrival");
   const [hasInspected, setHasInspected] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activePayload, setActivePayload] = useState<InteractionPayload | null>(null);
+
+  const inspectTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Subscribe to typed interaction dispatcher events
   useEffect(() => {
@@ -34,12 +38,13 @@ export default function ExperienceCanvas({
         setCameraMode("inspect");
         setHasInspected(true);
         setActivePayload(payload);
+        setIsDrawerOpen(true);
       }
     );
 
     // Escape key closes product inspection and returns to Arrival View
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !isDrawerOpen) {
         setCameraMode("arrival");
         setActivePayload(null);
       }
@@ -51,18 +56,23 @@ export default function ExperienceCanvas({
       unsubscribe();
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [isDrawerOpen]);
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setCameraMode("arrival");
+    setActivePayload(null);
+  };
 
   const handleInspectTrigger = () => {
-    if (cameraMode === "arrival") {
+    if (cameraMode === "arrival" || !isDrawerOpen) {
       interactionDispatcher.dispatch({
         interaction: "inspect_product",
         slotKey: "featured-hero",
         productId: "prod_01_aurora",
       });
     } else {
-      setCameraMode("arrival");
-      setActivePayload(null);
+      handleCloseDrawer();
     }
   };
 
@@ -105,6 +115,7 @@ export default function ExperienceCanvas({
           onPedestalClick={() => {
             setCameraMode("inspect");
             setHasInspected(true);
+            setIsDrawerOpen(true);
           }}
         />
       </Canvas>
@@ -122,6 +133,7 @@ export default function ExperienceCanvas({
           flexWrap: "wrap",
           gap: "0.75rem",
           pointerEvents: "none",
+          zIndex: 10,
         }}
       >
         <div style={{ display: "flex", gap: "0.5rem", pointerEvents: "auto", alignItems: "center" }}>
@@ -181,6 +193,7 @@ export default function ExperienceCanvas({
           alignItems: "center",
           gap: "0.75rem",
           pointerEvents: "auto",
+          zIndex: 10,
         }}
       >
         <div
@@ -194,6 +207,7 @@ export default function ExperienceCanvas({
           }}
         >
           <button
+            ref={inspectTriggerRef}
             type="button"
             onClick={handleInspectTrigger}
             className={`btn ${cameraMode === "inspect" ? "btn-primary" : "btn-secondary"}`}
@@ -206,11 +220,18 @@ export default function ExperienceCanvas({
 
           <span style={{ fontSize: "0.8rem", color: "var(--pearl-muted)" }}>
             {hasInspected
-              ? "Hero Pedestal in Focus · Press Esc to reset"
+              ? "Hero Pedestal in Focus · Details Active"
               : "Click Pedestal or press button to Inspect"}
           </span>
         </div>
       </div>
+
+      {/* ACCESSIBLE PRODUCT DETAIL DRAWER OVERLAY */}
+      <ProductDetailDrawer
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
+        triggerRef={inspectTriggerRef}
+      />
     </div>
   );
 }
