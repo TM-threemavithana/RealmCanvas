@@ -8,6 +8,7 @@ import {
   type CapabilityReport,
   type QualityTier,
 } from "@/experience/quality/QualityManager";
+import ExperienceCanvas from "@/experience/canvas/ExperienceCanvas";
 
 interface CapabilityGuardProps {
   slug: string;
@@ -23,6 +24,7 @@ export default function CapabilityGuard({
   const [selectedTier, setSelectedTier] = useState<QualityTier>("medium");
   const [audioOptIn, setAudioOptIn] = useState<boolean>(false);
   const [reducedMotion, setReducedMotion] = useState<boolean>(false);
+  const [isExperienceActive, setIsExperienceActive] = useState<boolean>(false);
 
   const runProbe = () => {
     setProbeStatus("probing");
@@ -150,7 +152,23 @@ export default function CapabilityGuard({
     );
   }
 
-  /* STATE 3: READY FOR 3D EXPERIENCE */
+  /* STATE 3A: 3D EXPERIENCE ACTIVE */
+  if (isExperienceActive && report) {
+    return (
+      <ExperienceCanvas
+        report={{
+          ...report,
+          tier: selectedTier,
+          prefersReducedMotion: reducedMotion,
+          effectiveDpr: getEffectiveDpr(selectedTier, report.systemDpr),
+        }}
+        slug={slug}
+        onExitExperience={() => setIsExperienceActive(false)}
+      />
+    );
+  }
+
+  /* STATE 3B: STAGING READY FOR 3D EXPERIENCE */
   return (
     <div
       className="card-panel"
@@ -327,13 +345,17 @@ export default function CapabilityGuard({
         <button
           type="button"
           onClick={() => {
-            if (report && onLaunchExperience) {
-              onLaunchExperience({
-                ...report,
-                tier: selectedTier,
-                prefersReducedMotion: reducedMotion,
-              });
+            if (!report) return;
+            const updatedReport: CapabilityReport = {
+              ...report,
+              tier: selectedTier,
+              prefersReducedMotion: reducedMotion,
+              effectiveDpr: getEffectiveDpr(selectedTier, report.systemDpr),
+            };
+            if (onLaunchExperience) {
+              onLaunchExperience(updatedReport);
             }
+            setIsExperienceActive(true);
           }}
           className="btn btn-primary"
           style={{ minWidth: "240px" }}
