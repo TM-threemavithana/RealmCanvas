@@ -1,8 +1,14 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
 import { TEMPLATE_SLOT_REGISTRY } from "@/server/showrooms/PlacementEditor";
+import SlotAssignmentModal, {
+  type AvailableProductOption,
+} from "./SlotAssignmentModal";
+import PublishConfirmationModal from "./PublishConfirmationModal";
 
-interface PlacementSummaryItem {
+export interface PlacementSummaryItem {
   slotKey: string;
   slotName: string;
   assignedProduct?: {
@@ -12,14 +18,14 @@ interface PlacementSummaryItem {
   };
 }
 
-interface AnalyticsMetric {
+export interface AnalyticsMetric {
   label: string;
   value: string | number;
   subtext: string;
   accent: "cyan" | "gold" | "iris";
 }
 
-interface InquiryItem {
+export interface InquiryItem {
   id: string;
   contactName: string;
   productName: string;
@@ -37,12 +43,20 @@ interface StudioDashboardProps {
   placements?: PlacementSummaryItem[];
   metrics?: AnalyticsMetric[];
   recentInquiries?: InquiryItem[];
+  availableProducts?: AvailableProductOption[];
 }
 
 const getSlotDescription = (key: string): string => {
   const descriptor = TEMPLATE_SLOT_REGISTRY.find((s) => s.slotKey === key);
   return descriptor ? descriptor.description : key;
 };
+
+const DEFAULT_AVAILABLE_PRODUCTS: AvailableProductOption[] = [
+  { id: "prod_aurora", name: "Aurora Wireless Headphones", slug: "aurora-headphones" },
+  { id: "prod_monitor", name: "Titanium Studio Monitor", slug: "titanium-monitor" },
+  { id: "prod_aurora_lab", name: "Aurora Acoustic Rig (Exploded View)", slug: "aurora-lab-rig" },
+  { id: "prod_spatial_amp", name: "Celestial DAC / Amplifier", slug: "celestial-amp" },
+];
 
 const DEFAULT_PLACEMENTS: PlacementSummaryItem[] = [
   {
@@ -147,9 +161,82 @@ export default function StudioDashboard({
   placements = DEFAULT_PLACEMENTS,
   metrics = DEFAULT_METRICS,
   recentInquiries = DEFAULT_INQUIRIES,
+  availableProducts = DEFAULT_AVAILABLE_PRODUCTS,
 }: StudioDashboardProps) {
-  const occupiedSlots = placements.filter((p) => p.assignedProduct).length;
-  const totalSlots = placements.length;
+  // State for interactive mutations
+  const [currentPlacements, setCurrentPlacements] = useState<PlacementSummaryItem[]>(placements);
+  const [currentRevision, setCurrentRevision] = useState<number>(revisionNumber);
+  const [currentPublicationId, setCurrentPublicationId] = useState<string>(publicationId);
+  const [inquiries, setInquiries] = useState<InquiryItem[]>(recentInquiries);
+
+  // Modal controls
+  const [activeSlotToEdit, setActiveSlotToEdit] = useState<string | null>(null);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState<boolean>(false);
+  const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [publishedSnapshotId, setPublishedSnapshotId] = useState<string | null>(null);
+
+  const occupiedSlots = currentPlacements.filter((p) => p.assignedProduct).length;
+  const totalSlots = currentPlacements.length;
+
+  // Handle slot assignment update
+  const handleSavePlacement = (slotKey: string, productId: string, scale: number) => {
+    const selectedProd = availableProducts.find((p) => p.id === productId);
+    if (!selectedProd) return;
+
+    setCurrentPlacements((prev) =>
+      prev.map((slot) => {
+        if (slot.slotKey === slotKey) {
+          return {
+            ...slot,
+            assignedProduct: {
+              id: selectedProd.id,
+              name: selectedProd.name,
+              scale,
+            },
+          };
+        }
+        return slot;
+      })
+    );
+
+    // Bump draft revision number upon mutation
+    setCurrentRevision((prev) => prev + 1);
+  };
+
+  // Handle publish confirmation
+  const handleConfirmPublish = async () => {
+    setIsPublishing(true);
+    // Simulate atomic publish transaction delay
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const newSnapshotId = `pub_${crypto.randomUUID().slice(0, 12)}`;
+    setCurrentPublicationId(newSnapshotId);
+    setPublishedSnapshotId(newSnapshotId);
+    setIsPublishing(false);
+  };
+
+  // Cycle lead status
+  const handleCycleLeadStatus = (leadId: string) => {
+    const order: Array<"new" | "contacted" | "qualified" | "closed"> = [
+      "new",
+      "contacted",
+      "qualified",
+      "closed",
+    ];
+
+    setInquiries((prev) =>
+      prev.map((inq) => {
+        if (inq.id === leadId) {
+          const currentIndex = order.indexOf(inq.status);
+          const nextStatus = order[(currentIndex + 1) % order.length];
+          return { ...inq, status: nextStatus };
+        }
+        return inq;
+      })
+    );
+  };
+
+  const slotBeingEdited = currentPlacements.find((p) => p.slotKey === activeSlotToEdit);
 
   return (
     <main id="studio-main" style={{ flex: 1, padding: "2.5rem 0 5rem" }}>
@@ -194,14 +281,16 @@ export default function StudioDashboard({
             <Link
               href="/catalog"
               className="btn btn-secondary"
-              style={{ padding: "0.6rem 1.25rem", fontSize: "0.875rem" }}
+              style={{ padding: "0.6rem 1.25rem", fontSize: "0.875rem", minHeight: "44px" }}
             >
               View 2D Catalog
             </Link>
             <Link
               href="/showroom/celestial-pavilion"
               className="btn btn-primary"
-              style={{ padding: "0.6rem 1.25rem", fontSize: "0.875rem" }}
+              style={{ padding: "0.6rem 1.25rem", fontSize: "0.875rem", minHeight: "44px" }}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               Enter Live 3D Experience
             </Link>
@@ -326,15 +415,29 @@ export default function StudioDashboard({
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--pearl-dim)" }}>Revision Concurrency:</span>
-                  <span style={{ color: "var(--pearl)" }}>{`Draft Rev #${revisionNumber}`}</span>
+                  <span style={{ color: "var(--pearl)", fontWeight: 600 }}>
+                    {`Draft Rev #${currentRevision}`}
+                  </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--pearl-dim)" }}>Active Publication:</span>
                   <span style={{ color: "var(--pearl-muted)", fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-                    {publicationId}
+                    {currentPublicationId}
                   </span>
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPublishedSnapshotId(null);
+                  setIsPublishModalOpen(true);
+                }}
+                className="btn btn-primary"
+                style={{ minHeight: "44px", width: "100%", marginBottom: "1rem" }}
+              >
+                {`Publish Changes (Rev #${currentRevision})`}
+              </button>
 
               <div
                 style={{
@@ -378,12 +481,12 @@ export default function StudioDashboard({
                   </span>
                 </div>
                 <span className="badge badge-gold">
-                  {occupiedSlots} / {totalSlots} Assigned
+                  {`${occupiedSlots} / ${totalSlots} Assigned`}
                 </span>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {placements.map((slot) => {
+                {currentPlacements.map((slot) => {
                   const isAssigned = !!slot.assignedProduct;
 
                   return (
@@ -432,21 +535,25 @@ export default function StudioDashboard({
                         </span>
                       </div>
 
-                      {isAssigned ? (
-                        <span className="badge badge-cyan" style={{ fontSize: "0.7rem" }}>
-                          Scale {slot.assignedProduct?.scale}x
-                        </span>
-                      ) : (
-                        <span
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        {isAssigned && (
+                          <span className="badge badge-cyan" style={{ fontSize: "0.7rem" }}>
+                            Scale {slot.assignedProduct?.scale}x
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setActiveSlotToEdit(slot.slotKey)}
+                          className="btn btn-secondary"
                           style={{
-                            fontSize: "0.7rem",
-                            color: "var(--pearl-dim)",
-                            fontStyle: "italic",
+                            padding: "0.35rem 0.75rem",
+                            fontSize: "0.75rem",
+                            minHeight: "44px",
                           }}
                         >
-                          Unassigned
-                        </span>
-                      )}
+                          {isAssigned ? "Edit" : "Assign"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -480,17 +587,19 @@ export default function StudioDashboard({
                     Section 3.3 Conversion Pipeline
                   </span>
                 </div>
-                <span className="badge badge-iris">{`${recentInquiries.length} Active Leads`}</span>
+                <span className="badge badge-iris">{`${inquiries.length} Active Leads`}</span>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {recentInquiries.map((inq) => {
+                {inquiries.map((inq) => {
                   const statusBadgeClass =
                     inq.status === "new"
                       ? "badge badge-cyan"
                       : inq.status === "qualified"
                       ? "badge badge-gold"
-                      : "badge badge-iris";
+                      : inq.status === "contacted"
+                      ? "badge badge-iris"
+                      : "badge";
 
                   return (
                     <div
@@ -520,9 +629,22 @@ export default function StudioDashboard({
                         </span>
                       </div>
 
-                      <span className={statusBadgeClass} style={{ textTransform: "capitalize", fontSize: "0.75rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleCycleLeadStatus(inq.id)}
+                        className={statusBadgeClass}
+                        style={{
+                          textTransform: "capitalize",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                          minHeight: "44px",
+                          minWidth: "44px",
+                        }}
+                        title="Click to cycle status: new -> contacted -> qualified -> closed"
+                        aria-label={`Lead status: ${inq.status}. Click to cycle status.`}
+                      >
                         {inq.status}
-                      </span>
+                      </button>
                     </div>
                   );
                 })}
@@ -580,6 +702,32 @@ export default function StudioDashboard({
           </div>
         </div>
       </div>
+
+      {/* Interactive Slot Assignment Modal */}
+      {activeSlotToEdit && (
+        <SlotAssignmentModal
+          key={activeSlotToEdit}
+          isOpen={true}
+          onClose={() => setActiveSlotToEdit(null)}
+          slotKey={activeSlotToEdit}
+          currentProductId={slotBeingEdited?.assignedProduct?.id}
+          currentScale={slotBeingEdited?.assignedProduct?.scale}
+          availableProducts={availableProducts}
+          onSave={handleSavePlacement}
+        />
+      )}
+
+      {/* Atomic Publish Confirmation Modal */}
+      <PublishConfirmationModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+        revisionNumber={currentRevision}
+        assignedSlotCount={occupiedSlots}
+        totalSlotCount={totalSlots}
+        onConfirmPublish={handleConfirmPublish}
+        isPublishing={isPublishing}
+        publishedSnapshotId={publishedSnapshotId}
+      />
     </main>
   );
 }
