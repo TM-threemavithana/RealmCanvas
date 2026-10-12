@@ -29,6 +29,7 @@ import {
   PRODUCT_VARIANTS,
   DEFAULT_VARIANT_ID,
 } from "@/experience/templates/ProductVariants";
+import { TelemetryBridge } from "@/experience/telemetry/TelemetryBridge";
 
 interface ExperienceCanvasProps {
   report: CapabilityReport;
@@ -84,7 +85,28 @@ export default function ExperienceCanvas({
     [report.tier]
   );
 
+  const telemetry = useMemo(
+    () =>
+      new TelemetryBridge({
+        organizationId: "org_celestial_demo",
+        showroomId: slug || "celestial-pavilion",
+      }),
+    [slug]
+  );
+
   const effectiveDpr = getEffectiveDpr(effectiveTier, report.systemDpr);
+
+  // Initialize and tear down telemetry lifecycle
+  useEffect(() => {
+    telemetry.emit("experience_entered", { entryMode: "webgl" });
+    telemetry.emit("scene_ready", {
+      renderTier: report.tier,
+    });
+
+    return () => {
+      telemetry.destroy();
+    };
+  }, [telemetry, report.tier]);
 
   // Subscribe to typed interaction dispatcher events
   useEffect(() => {
@@ -95,6 +117,10 @@ export default function ExperienceCanvas({
         setHasInspected(true);
         setActivePayload(payload);
         setIsDrawerOpen(true);
+        telemetry.emit("product_inspected", {
+          productId: payload.productId,
+          slotKey: payload.slotKey,
+        });
       }
     );
 
@@ -117,7 +143,7 @@ export default function ExperienceCanvas({
       unsubscribe();
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isDrawerOpen, cameraMode, activeZone]);
+  }, [isDrawerOpen, cameraMode, activeZone, telemetry]);
 
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
@@ -128,6 +154,7 @@ export default function ExperienceCanvas({
   const handleSelectZone = (zoneId: NavigationZoneId) => {
     setActiveZone(zoneId);
     setCameraMode(zoneId);
+    telemetry.emit("zone_visited", { zoneKey: zoneId });
     if (isDrawerOpen) {
       setIsDrawerOpen(false);
       setActivePayload(null);
@@ -395,7 +422,13 @@ export default function ExperienceCanvas({
         onClose={handleCloseDrawer}
         triggerRef={inspectTriggerRef}
         selectedVariantId={selectedVariantId}
-        onSelectVariant={(variantId) => setSelectedVariantId(variantId)}
+        onSelectVariant={(variantId) => {
+          setSelectedVariantId(variantId);
+          telemetry.emit("variant_selected", {
+            productId: activePayload?.productId || "prod_01_aurora",
+            variantId,
+          });
+        }}
       />
 
       {/* PERFORMANCE & DIAGNOSTICS TELEMETRY OVERLAY (RC-010) */}

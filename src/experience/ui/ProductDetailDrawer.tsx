@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import LeadInquiryModal from "./LeadInquiryModal";
 
 export interface ProductDetailData {
   id: string;
@@ -79,6 +80,7 @@ export default function ProductDetailDrawer({
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousActiveElement = useRef<Element | null>(null);
+  const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
 
   // Focus management and Escape key handling
   useEffect(() => {
@@ -423,6 +425,15 @@ export default function ProductDetailDrawer({
 
           <button
             type="button"
+            onClick={() => setIsInquiryModalOpen(true)}
+            className="btn btn-secondary"
+            style={{ width: "100%", minHeight: "44px" }}
+          >
+            Request Commercial Quote
+          </button>
+
+          <button
+            type="button"
             onClick={onClose}
             className="btn btn-secondary"
             style={{ width: "100%" }}
@@ -431,6 +442,16 @@ export default function ProductDetailDrawer({
           </button>
         </div>
       </div>
+
+      {/* In-Scene Conversion Lead Modal */}
+      <LeadInquiryModal
+        isOpen={isInquiryModalOpen}
+        onClose={() => setIsInquiryModalOpen(false)}
+        organizationId="org_celestial_demo"
+        showroomId="showroom_celestial"
+        productId={product.id}
+        productTitle={product.title}
+      />
     </div>
   );
 }
